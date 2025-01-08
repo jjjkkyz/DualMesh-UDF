@@ -14,7 +14,14 @@ namespace py = pybind11;
 Eigen::MatrixXi g_child_order = []
 {
     Eigen::MatrixXi m(8, 3);
-    m << 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1;
+    m << 0, 0, 0, 
+    0, 0, 1, 
+    0, 1, 0, 
+    0, 1, 1, 
+    1, 0, 0, 
+    1, 0, 1, 
+    1, 1, 0, 
+    1, 1, 1;
     return m;
 }();
 
@@ -69,6 +76,7 @@ bool OctreeNode::subdivide()
         Eigen::VectorXi max_corner_id_offset = Eigen::VectorXi::Constant(3, child_edge_span);
         for (int i = 0; i < 8; ++i)
         {
+            //??
             Eigen::VectorXi child_min_corner_id = m_min_corner_id + (g_child_order.row(i) * child_edge_span).transpose();
 
             Eigen::VectorXi child_max_corner_id = child_min_corner_id + max_corner_id_offset;
@@ -98,16 +106,17 @@ Octree::Octree(int max_depth, Eigen::VectorXd min_corner, Eigen::VectorXd max_co
     m_sampling_depth = sampling_depth;
 
     m_capacity_per_dim = std::pow(2, max_depth + sampling_depth) + 1;
-    std::cout << "The resolution is " << (m_capacity_per_dim - 1) / std::pow(2, m_sampling_depth) << "." << std::endl;
+    std::cout << "2.5 The resolution is " << (m_capacity_per_dim - 1) / std::pow(2, m_sampling_depth) << "." << std::endl;
     std::cout << "The number of samples per cell is " << std::pow(m_sampling_depth + 2, 3) << "." << std::endl;
-
     Eigen::VectorXi root_node_min_corner_id = Eigen::VectorXi::Zero(3);
     Eigen::VectorXi root_node_max_corner_id = Eigen::VectorXi::Constant(3, m_capacity_per_dim - 1);
 
     m_root_node = OctreeNode(root_node_min_corner_id, root_node_max_corner_id);
 
     // compute the unit edge length
-    m_unit_edge_length = (max_corner[0] - min_corner[0]) / double(m_capacity_per_dim - 1);
+    m_unit_edge_length = (max_corner[0] - min_corner[0]) / double(m_capacity_per_dim - 1);  // (x_max - x_min)/（2^8）
+    
+    // m_unit_edge_length = (max_corner - min_corner) / double(m_capacity_per_dim - 1);  // (x_max - x_min)/（2^8）
 
     // initialize the nodes vector and push the root node into it
     m_leaf_nodes.clear();
@@ -274,7 +283,10 @@ void Octree::set_new_grid_data(const Eigen::VectorXi& new_grid_indices, const Ei
 void Octree::adaptive_subdivide(const Eigen::VectorXf& centroid_udfs, const Eigen::MatrixXf& centroid_grads, double margin)
 {
     // compute the diagonal length of the cell
+    // node_edge_length 表示节点的实际边长。 m_unit_edge_length 表示一个单元格的边长。 m_edge_span 表示第一个叶子节点沿x轴的边长
+    // node_edge_length = 一个单位长度  *  n个单位
     double node_edge_length = m_unit_edge_length * m_leaf_nodes[0].get().m_edge_span;
+    // half_diagonal_length = std::sqrt(2) * node_edge_length * 0.5?
     double half_diagonal_length = std::sqrt(3) * node_edge_length * 0.5;
 
     // subdivide valid cells
@@ -293,6 +305,7 @@ void Octree::adaptive_subdivide(const Eigen::VectorXf& centroid_udfs, const Eige
         m_centroid_grads[sid] = centroid_grads.row(i).cast<double>().transpose();
 
         // Our key criterion
+        // if (m_centroid_udfs[sid] < 3.0 *  half_diagonal_length + margin)
         if (m_centroid_udfs[sid] < half_diagonal_length + margin)
         {
             // check if current depth reaches the max depth
@@ -323,6 +336,7 @@ void Octree::set_grid_validity(const Eigen::VectorXi& indices, const std::vector
 #pragma omp parallel for
     for (int i = 0; i < validity_mask.size(); ++i)
     {
+        // std::cout<<"??"<<validity_mask[i]<<endl
         if (!validity_mask[i])
         {
             m_proj_validity[indices[i]] = false;
